@@ -28,3 +28,6 @@ desktop.ini
 # Local artifacts
 *.log
 instance/
+
+# Superpowers scratch workspace
+.superpowers/
