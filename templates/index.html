@@ -9,27 +9,36 @@
 <body>
 <main class="page">
   <header class="page-header">
-    <p class="eyebrow">ENG29 2121 · Lab 02</p>
+    <p class="eyebrow">ENG29 2121 · Lab 03</p>
     <h1>BJT DC Bias Calculator</h1>
-    <p class="subtitle">Common-Emitter · Voltage-Divider Bias · Forward-Active Model</p>
+    <p class="subtitle">Common-Emitter · {{ mode_labels[mode] }} · Forward-Active Model</p>
   </header>
 
   <div class="layout">
     <section class="card">
       <h2>Input Parameters</h2>
+
+      <form method="get" action="/" class="mode-form">
+        <label for="mode">เลือกวงจร</label>
+        <select id="mode" name="mode">
+          {% for key in modes %}
+          <option value="{{ key }}" {% if mode == key %}selected{% endif %}>{{ mode_labels[key] }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="mode-button">เปลี่ยนวงจร</button>
+      </form>
+      {% if errors.mode %}<p class="error">{{ errors.mode }}</p>{% endif %}
+
       <form method="post" action="/calculate" novalidate>
+        <input type="hidden" name="mode" value="{{ mode }}">
+
         <div class="field">
           <label for="vcc">VCC <span class="unit-fixed">V</span></label>
           <input id="vcc" name="vcc" type="text" inputmode="decimal" value="{{ values.vcc }}">
           {% if errors.vcc %}<p class="error">{{ errors.vcc }}</p>{% endif %}
         </div>
 
-        {% for field, label, unit_key in [
-            ('r1', 'R1 (VCC → Base)', 'r1_unit'),
-            ('r2', 'R2 (Base → GND)', 'r2_unit'),
-            ('rc', 'RC (VCC → Collector)', 'rc_unit'),
-            ('re', 'RE (Emitter → GND)', 're_unit')
-        ] %}
+        {% for field, label, unit_key in resistor_specs %}
         <div class="field">
           <label for="{{ field }}">{{ label }}</label>
           <div class="input-row">
@@ -63,10 +72,10 @@
 
     {% if result %}
     <section class="results" aria-live="polite">
-      <h2>DC Bias Results</h2>
-      <p class="badge badge-{{ result.region }}">
-        {% if result.region == "active" %}Active Region
-        {% elif result.region == "cutoff" %}Cutoff
+      <h2>DC Bias Results — {{ mode_labels[mode] }}</h2>
+      <p class="badge badge-{{ result['region'] }}">
+        {% if result['region'] == "active" %}Active Region
+        {% elif result['region'] == "cutoff" %}Cutoff
         {% else %}Saturation{% endif %}
       </p>
 
@@ -82,9 +91,9 @@
         </tbody>
       </table>
 
-      {% if result.warnings %}
+      {% if result['warnings'] %}
       <ul class="warnings">
-        {% for warning in result.warnings %}
+        {% for warning in result['warnings'] %}
         <li>{{ warning }}</li>
         {% endfor %}
       </ul>

@@ -130,6 +130,41 @@ select:focus {
   font-size: 13px;
 }
 
+.mode-form {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mode-form label {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.mode-form select {
+  flex: 1 1 auto;
+}
+
+.mode-button {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--blue);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mode-button:hover {
+  background: #eaf2f8;
+}
+
 .calculate {
   width: 100%;
   margin-top: 8px;
