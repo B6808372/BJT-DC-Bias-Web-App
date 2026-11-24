@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from werkzeug.datastructures import MultiDict
 
-from app import app, parse_spice_form
+from app import app, build_charts, parse_spice_form
 from spice_engine import (
     EngineOutputError,
     EngineRunError,
@@ -38,6 +38,28 @@ class TestSpiceWeb(unittest.TestCase):
         self.assertIn('name="source_amp"', html)
         self.assertIn('value="ac" selected', html)
         self.assertIn("source node IN", html)
+
+    def test_spice_page_has_amplifier_circuit_diagram(self):
+        html = self.client.get("/?analysis=dc").get_data(as_text=True)
+        self.assertIn('aria-label="CE voltage-divider amplifier circuit"', html)
+        for label in ("VIN", "Cin", "Cout", "RL", "Q1"):
+            self.assertIn(label, html)
+
+    def test_bias_pages_have_mode_specific_circuit_diagrams(self):
+        for mode, label in (
+            ("fixed", "Fixed bias circuit"),
+            ("emitter", "Emitter bias circuit"),
+            ("divider", "Voltage-divider bias circuit"),
+        ):
+            html = self.client.get(f"/?mode={mode}").get_data(as_text=True)
+            self.assertIn(f'aria-label="{label}"', html)
+
+    def test_spice_form_fields_are_grouped_in_responsive_grid(self):
+        html = self.client.get("/?analysis=dc").get_data(as_text=True)
+        self.assertIn('class="form-grid"', html)
+        self.assertIn("DC bias network", html)
+        self.assertIn("Collector and emitter", html)
+        self.assertIn("Coupling and source", html)
 
     def test_invalid_re_returns_400_without_results(self):
         res = self.client.post("/calculate", data=self._spice_payload(re="0"))
@@ -204,3 +226,85 @@ class TestAppEngineBoundary(unittest.TestCase):
         self.assertEqual(errors, {})
         netlist = build_netlist("dc", values_si)
         self.assertIn("SIN(0 10m 1k 0 0)", netlist)
+
+
+class TestLab04PresentationDetails(unittest.TestCase):
+    """AC phase curve and circuit values entered by the student."""
+
+    def setUp(self):
+        self.client = app.test_client()
+
+    def _ac_result(self):
+        return {
+            "status": "OK", "analysis": "ac",
+            "ac": {
+                "points": [
+                    {"freq_hz": 100.0, "gain_db": 1.0, "phase_deg": -180.0},
+                    {"freq_hz": 10000.0, "gain_db": 9.0, "phase_deg": -90.0},
+                ],
+                "marker": {"freq_hz": 100.0, "gain_db": 1.0, "phase_deg": -180.0},
+                "marker_note": "",
+            },
+            "provenance": {"engine": "ngspice-47", "model": MODEL_NAME}, "rows": 2,
+        }
+
+    def _payload(self, **overrides):
+        data = {
+            "analysis": "ac", "vcc": "12", "r1": "100", "r2": "22",
+            "rc": "2.2", "re": "1", "rl": "10", "cin": "10", "cout": "10",
+            "source_amp": "10", "source_freq": "1",
+            "r1_unit": "kohm", "r2_unit": "kohm", "rc_unit": "kohm",
+            "re_unit": "kohm", "rl_unit": "kohm",
+            "cin_unit": "uf", "cout_unit": "uf",
+            "amp_unit": "mv", "freq_unit": "khz",
+        }
+        data.update(overrides)
+        return data
+
+    def test_build_charts_ac_maps_phase_to_own_right_axis(self):
+        ac = build_charts(self._ac_result())["ac"]
+        self.assertEqual(len(ac["phase_polyline"].split()), 2)
+        self.assertEqual(ac["phase_y_label"], "Phase (°)")
+        self.assertEqual([tick["label"] for tick in ac["phase_ticks"]],
+                         ["-180°", "-135°", "-90°"])
+        self.assertEqual(ac["phase_axis_x"], ac["right"])
+        self.assertNotEqual(ac["phase_polyline"], ac["polyline"])
+
+    def test_phase_tick_does_not_show_negative_zero(self):
+        result = self._ac_result()
+        result["ac"]["points"][1]["phase_deg"] = 179.872
+        ac = build_charts(result)["ac"]
+        self.assertEqual([tick["label"] for tick in ac["phase_ticks"]],
+                         ["-180°", "0°", "180°"])
+
+    def test_ac_page_renders_phase_curve_and_right_axis(self):
+        with patch("app.run_analysis", return_value=self._ac_result()):
+            res = self.client.post("/calculate", data=self._payload())
+        html = res.get_data(as_text=True)
+        self.assertIn('class="chart-line-phase"', html)
+        self.assertIn("Phase (°)", html)
+        self.assertIn('class="chart-tick chart-tick-phase">-180°</text>', html)
+        self.assertIn("AC gain and phase versus frequency", html)
+
+    def test_default_spice_circuit_shows_entered_values(self):
+        html = self.client.get("/?analysis=ac").get_data(as_text=True)
+        for text in ('class="circuit-value">12 V</tspan>',
+                     'class="circuit-value">100 kΩ</tspan>',
+                     'class="circuit-value">10 mV · 1 kHz</tspan>'):
+            self.assertIn(text, html)
+
+    def test_spice_circuit_values_follow_submitted_form(self):
+        payload = self._payload(
+            vcc="24", r1="47", r2="10", rc="3.3", re="470", re_unit="ohm",
+            rl="5.1", cin="100", cin_unit="nf", cout="22",
+            source_amp="25", source_freq="2",
+        )
+        with patch("app.run_analysis", return_value=self._ac_result()):
+            res = self.client.post("/calculate", data=payload)
+        html = res.get_data(as_text=True)
+        for text in ('class="circuit-value">24 V</tspan>',
+                     'class="circuit-value">47 kΩ</tspan>',
+                     'class="circuit-value">470 Ω</tspan>',
+                     'class="circuit-value">100 nF</tspan>',
+                     'class="circuit-value">25 mV · 2 kHz</tspan>'):
+            self.assertIn(text, html)

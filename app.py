@@ -146,6 +146,12 @@ SPICE_DEFAULT_UNITS = {
     "cin_unit": "uf", "cout_unit": "uf",
     "amp_unit": "mv", "freq_unit": "khz",
 }
+SPICE_UNIT_SYMBOLS = {
+    "ohm": "Ω", "kohm": "kΩ", "mohm": "MΩ",
+    "pf": "pF", "nf": "nF", "uf": "µF",
+    "mv": "mV", "v": "V",
+    "hz": "Hz", "khz": "kHz", "mhz": "MHz",
+}
 SPICE_ENGINE_KEYS = {
     "source_amp": "source_amp_v",
     "source_freq": "source_freq_hz",
@@ -183,6 +189,17 @@ def parse_spice_form(form) -> tuple[dict[str, float], dict[str, str]]:
         SPICE_ENGINE_KEYS.get(key, key): value for key, value in values_si.items()
     }
     return engine_values, errors
+
+
+def build_circuit_labels(values, units) -> dict[str, str]:
+    """Format entered fixture values for the display-only circuit diagram."""
+    labels = {"vcc": f"{values.get('vcc', '')} V".strip()}
+    for key, unit_key in SPICE_UNIT_KEYS.items():
+        raw = str(values.get(key, "") or "").strip()
+        symbol = SPICE_UNIT_SYMBOLS.get(units.get(unit_key, ""), "")
+        labels[key] = f"{raw} {symbol}".strip() if raw else "—"
+    labels["source"] = f"{labels['source_amp']} · {labels['source_freq']}"
+    return labels
 
 
 def parse_form(form, mode: str) -> tuple[dict[str, float], dict[str, str]]:
@@ -338,9 +355,10 @@ SVG_TOP = 24
 SVG_BOTTOM = 214
 
 
-def _svg_x(value: float, x_min: float, x_max: float) -> float:
+def _svg_x(value: float, x_min: float, x_max: float,
+           right: float = SVG_RIGHT) -> float:
     span = x_max - x_min or 1.0
-    return SVG_LEFT + (value - x_min) / span * (SVG_RIGHT - SVG_LEFT)
+    return SVG_LEFT + (value - x_min) / span * (right - SVG_LEFT)
 
 
 def _svg_y(value: float, y_min: float, y_max: float) -> float:
@@ -349,9 +367,10 @@ def _svg_y(value: float, y_min: float, y_max: float) -> float:
 
 
 def _svg_polyline(pairs, x_min: float, x_max: float,
-                  y_min: float, y_max: float) -> str:
+                  y_min: float, y_max: float,
+                  right: float = SVG_RIGHT) -> str:
     return " ".join(
-        f"{_svg_x(x, x_min, x_max):.1f},{_svg_y(y, y_min, y_max):.1f}"
+        f"{_svg_x(x, x_min, x_max, right):.1f},{_svg_y(y, y_min, y_max):.1f}"
         for x, y in pairs
     )
 
@@ -373,34 +392,66 @@ def build_charts(spice_result: dict | None) -> dict[str, dict]:
     ac = spice_result.get("ac") or {}
     ac_points = ac.get("points") or []
     if ac_points:
-        x_values = [math.log10(p["freq_hz"]) for p in ac_points
-                    if p.get("freq_hz", 0) > 0]
-        y_values = [p["gain_db"] for p in ac_points if "gain_db" in p]
+        valid_points = [
+            point for point in ac_points
+            if point.get("freq_hz", 0) > 0 and "gain_db" in point
+        ]
+        x_values = [math.log10(point["freq_hz"]) for point in valid_points]
+        y_values = [point["gain_db"] for point in valid_points]
         if x_values and y_values:
             x_min, x_max = min(x_values), max(x_values)
             y_min, y_max = min(y_values), max(y_values)
             padding = max((y_max - y_min) * 0.05, 1.0)
             y_min -= padding
             y_max += padding
+            frame = _chart_frame()
+            frame["right"] -= 40
+            phase_axis_x = frame["right"]
             marker_data = None
             marker = ac.get("marker")
             if marker and marker.get("freq_hz", 0) > 0 and "gain_db" in marker:
                 marker_data = {
-                    "x": round(_svg_x(math.log10(marker["freq_hz"]), x_min, x_max), 1),
+                    "x": round(_svg_x(math.log10(marker["freq_hz"]), x_min, x_max,
+                                      frame["right"]), 1),
                     "y": round(_svg_y(marker["gain_db"], y_min, y_max), 1),
                     "label": (f"{marker['gain_db']:.2f} dB @ "
                               f"{marker['freq_hz']:g} Hz"),
                 }
+            phase_values = [
+                point["phase_deg"] for point in valid_points
+                if "phase_deg" in point
+            ]
+            phase_polyline = ""
+            phase_ticks = []
+            phase_y_label = ""
+            if len(phase_values) == len(valid_points):
+                phase_min, phase_max = min(phase_values), max(phase_values)
+                phase_padding = max((phase_max - phase_min) * 0.05, 5.0)
+                phase_lo = phase_min - phase_padding
+                phase_hi = phase_max + phase_padding
+                phase_polyline = _svg_polyline(
+                    zip(x_values, phase_values), x_min, x_max,
+                    phase_lo, phase_hi, frame["right"],
+                )
+                phase_y_label = "Phase (°)"
+                phase_ticks = []
+                for fraction in (0.0, 0.5, 1.0):
+                    tick_value = phase_min + fraction * (phase_max - phase_min)
+                    phase_ticks.append({
+                        "y": round(_svg_y(tick_value, phase_lo, phase_hi), 1),
+                        "label": f"{round(tick_value)}°",
+                    })
             charts["ac"] = {
-                **_chart_frame(),
+                **frame,
                 "polyline": _svg_polyline(zip(x_values, y_values),
-                                          x_min, x_max, y_min, y_max),
+                                          x_min, x_max, y_min, y_max,
+                                          frame["right"]),
                 "x_label": "Frequency (Hz)",
                 "y_label": "Gain (dB)",
                 "x_ticks": [
                     {
                         "x": round(_svg_x(x_min + fraction * (x_max - x_min),
-                                          x_min, x_max), 1),
+                                          x_min, x_max, frame["right"]), 1),
                         "label": f"{10 ** (x_min + fraction * (x_max - x_min)):.3g}",
                     }
                     for fraction in (0.0, 0.5, 1.0)
@@ -413,6 +464,10 @@ def build_charts(spice_result: dict | None) -> dict[str, dict]:
                     }
                     for fraction in (0.0, 0.5, 1.0)
                 ],
+                "phase_polyline": phase_polyline,
+                "phase_y_label": phase_y_label,
+                "phase_axis_x": phase_axis_x,
+                "phase_ticks": phase_ticks,
                 "marker": marker_data,
             }
 
@@ -468,6 +523,9 @@ def render_page(values, units, mode, result=None, errors=None, status=200, *,
     if analysis not in ANALYSES:
         analysis = "bias"
 
+    spice_values = spice_values or dict(SPICE_DEFAULT_VALUES)
+    spice_units = spice_units or dict(SPICE_DEFAULT_UNITS)
+
     return (
         render_template(
             "index.html",
@@ -487,8 +545,9 @@ def render_page(values, units, mode, result=None, errors=None, status=200, *,
             analysis=analysis,
             analyses=ANALYSES,
             analysis_labels=ANALYSIS_LABELS,
-            spice_values=spice_values or dict(SPICE_DEFAULT_VALUES),
-            spice_units=spice_units or dict(SPICE_DEFAULT_UNITS),
+            spice_values=spice_values,
+            spice_units=spice_units,
+            circuit_labels=build_circuit_labels(spice_values, spice_units),
             spice_resistor_specs=SPICE_RESISTOR_SPECS,
             spice_cap_specs=SPICE_CAP_SPECS,
             spice_unit_choices=SPICE_UNIT_CHOICES,
