@@ -3,21 +3,39 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BJT DC Bias Calculator</title>
+  <title>{% if analysis == "bias" %}BJT DC Bias Calculator{% else %}BJT Amplifier Simulator{% endif %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <main class="page">
   <header class="page-header">
-    <p class="eyebrow">ENG29 2121 · Lab 03</p>
-    <h1>BJT DC Bias Calculator</h1>
-    <p class="subtitle">Common-Emitter · {{ mode_labels[mode] }} · Forward-Active Model</p>
+    <p class="eyebrow">ENG29 2121 · {% if analysis == "bias" %}Lab 03{% else %}Lab 04{% endif %}</p>
+    <h1>{% if analysis == "bias" %}BJT DC Bias Calculator{% else %}BJT Amplifier Simulator{% endif %}</h1>
+    <p class="subtitle">
+      {% if analysis == "bias" %}
+      Common-Emitter · {{ mode_labels[mode] }} · Forward-Active Model
+      {% else %}
+      Common-Emitter · CE Voltage Divider · {% if analysis == "dc" %}DC .op{% elif analysis == "ac" %}AC .ac{% else %}Transient .tran{% endif %}
+      {% endif %}
+    </p>
   </header>
 
   <div class="layout">
     <section class="card">
       <h2>Input Parameters</h2>
 
+      <form method="get" action="/" class="mode-form">
+        <label for="analysis">การวิเคราะห์</label>
+        <select id="analysis" name="analysis">
+          {% for key in analyses %}
+          <option value="{{ key }}" {% if analysis == key %}selected{% endif %}>{{ analysis_labels[key] }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="mode-button">เปลี่ยนการวิเคราะห์</button>
+      </form>
+      {% if errors.analysis %}<p class="error">{{ errors.analysis }}</p>{% endif %}
+
+      {% if analysis == "bias" %}
       <form method="get" action="/" class="mode-form">
         <label for="mode">เลือกวงจร</label>
         <select id="mode" name="mode">
@@ -31,6 +49,7 @@
 
       <form method="post" action="/calculate" novalidate>
         <input type="hidden" name="mode" value="{{ mode }}">
+        <input type="hidden" name="analysis" value="bias">
 
         <div class="field">
           <label for="vcc">VCC <span class="unit-fixed">V</span></label>
@@ -68,9 +87,91 @@
 
         <button type="submit" class="calculate">Calculate DC Bias</button>
       </form>
+
+      {% else %}
+
+      <p class="help">
+        ผลจาก ngspice เป็นอีกชุดหนึ่งที่ขึ้นกับ BJT model — ไม่บังคับให้เท่ากับผล Analytical ทุกหลัก
+      </p>
+      <p class="help">
+        AC gain is measured at the source node IN before Cin; SPICE uses the teaching NPN model QT_NPN.
+      </p>
+
+      <form method="post" action="/calculate" novalidate class="spice-form">
+        <input type="hidden" name="analysis" value="{{ analysis }}">
+
+        <div class="field">
+          <label for="vcc">VCC <span class="unit-fixed">V</span></label>
+          <input id="vcc" name="vcc" type="text" inputmode="decimal" value="{{ spice_values.vcc }}">
+          {% if errors.vcc %}<p class="error">{{ errors.vcc }}</p>{% endif %}
+        </div>
+
+        {% for field, label, unit_key in spice_resistor_specs %}
+        <div class="field">
+          <label for="{{ field }}">{{ label }}</label>
+          <div class="input-row">
+            <input id="{{ field }}" name="{{ field }}" type="text" inputmode="decimal" value="{{ spice_values[field] }}">
+            <select name="{{ unit_key }}" aria-label="{{ label }} unit">
+              {% for value, symbol in spice_unit_choices[unit_key] %}
+              <option value="{{ value }}" {% if spice_units[unit_key] == value %}selected{% endif %}>{{ symbol }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if errors[field] %}<p class="error">{{ errors[field] }}</p>{% endif %}
+          {% if errors[unit_key] %}<p class="error">{{ errors[unit_key] }}</p>{% endif %}
+        </div>
+        {% endfor %}
+
+        {% for field, label, unit_key in spice_cap_specs %}
+        <div class="field">
+          <label for="{{ field }}">{{ label }}</label>
+          <div class="input-row">
+            <input id="{{ field }}" name="{{ field }}" type="text" inputmode="decimal" value="{{ spice_values[field] }}">
+            <select name="{{ unit_key }}" aria-label="{{ label }} unit">
+              {% for value, symbol in spice_unit_choices[unit_key] %}
+              <option value="{{ value }}" {% if spice_units[unit_key] == value %}selected{% endif %}>{{ symbol }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if errors[field] %}<p class="error">{{ errors[field] }}</p>{% endif %}
+          {% if errors[unit_key] %}<p class="error">{{ errors[unit_key] }}</p>{% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="field">
+          <label for="source_amp">Source amplitude (peak)</label>
+          <div class="input-row">
+            <input id="source_amp" name="source_amp" type="text" inputmode="decimal" value="{{ spice_values.source_amp }}">
+            <select name="amp_unit" aria-label="Source amplitude unit">
+              {% for value, symbol in spice_unit_choices.amp_unit %}
+              <option value="{{ value }}" {% if spice_units.amp_unit == value %}selected{% endif %}>{{ symbol }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if errors.source_amp %}<p class="error">{{ errors.source_amp }}</p>{% endif %}
+          {% if errors.amp_unit %}<p class="error">{{ errors.amp_unit }}</p>{% endif %}
+        </div>
+
+        <div class="field">
+          <label for="source_freq">Source frequency</label>
+          <div class="input-row">
+            <input id="source_freq" name="source_freq" type="text" inputmode="decimal" value="{{ spice_values.source_freq }}">
+            <select name="freq_unit" aria-label="Source frequency unit">
+              {% for value, symbol in spice_unit_choices.freq_unit %}
+              <option value="{{ value }}" {% if spice_units.freq_unit == value %}selected{% endif %}>{{ symbol }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if errors.source_freq %}<p class="error">{{ errors.source_freq }}</p>{% endif %}
+          {% if errors.freq_unit %}<p class="error">{{ errors.freq_unit }}</p>{% endif %}
+        </div>
+
+        <button type="submit" class="calculate">Run ngspice {{ analysis|upper }}</button>
+      </form>
+      {% endif %}
     </section>
 
-    {% if result %}
+    {% if analysis == "bias" and result %}
     <section class="results" aria-live="polite">
       <h2>DC Bias Results — {{ mode_labels[mode] }}</h2>
       <p class="badge badge-{{ result['region'] }}">
@@ -99,6 +200,93 @@
       </ul>
       {% endif %}
     </section>
+    {% endif %}
+
+    {% if analysis != "bias" %}
+      {% if engine %}
+      <section class="results engine-status" aria-live="polite">
+        <p class="status-badge status-{{ engine.status|lower }}">
+          {% if engine.status == "OK" %}Success{% elif engine.status == "UNAVAILABLE" %}UNAVAILABLE{% else %}ERROR{% endif %}
+        </p>
+        {% if engine.message %}<p class="error">{{ engine.message }}</p>{% endif %}
+        {% if engine.status == "OK" %}
+        <p class="help">Running… complete. Results below come from a real ngspice run.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if spice_result %}
+      <section class="results spice-results" aria-live="polite">
+        <h2>SPICE Results — {{ analysis_labels[analysis] }}</h2>
+
+        {% if spice_display.rows %}
+        <table class="results-table">
+          <tbody>
+            {% for label, value in spice_display.rows %}
+            <tr><th>{{ label }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        {% if spice_display.note %}<p class="help">{{ spice_display.note }}</p>{% endif %}
+
+        {% if charts.ac %}
+        <figure class="chart">
+          <svg viewBox="0 0 {{ charts.ac.width }} {{ charts.ac.height }}" role="img"
+               aria-label="AC gain versus frequency" preserveAspectRatio="xMidYMid meet">
+            <rect x="0" y="0" width="{{ charts.ac.width }}" height="{{ charts.ac.height }}" class="chart-bg"/>
+            <line x1="{{ charts.ac.left }}" y1="{{ charts.ac.top }}" x2="{{ charts.ac.left }}" y2="{{ charts.ac.bottom }}" class="chart-axis"/>
+            <line x1="{{ charts.ac.left }}" y1="{{ charts.ac.bottom }}" x2="{{ charts.ac.right }}" y2="{{ charts.ac.bottom }}" class="chart-axis"/>
+            {% for tick in charts.ac.x_ticks %}
+            <text x="{{ tick.x }}" y="{{ charts.ac.bottom + 18 }}" text-anchor="middle" class="chart-tick">{{ tick.label }}</text>
+            {% endfor %}
+            {% for tick in charts.ac.y_ticks %}
+            <text x="{{ charts.ac.left - 8 }}" y="{{ tick.y + 4 }}" text-anchor="end" class="chart-tick">{{ tick.label }}</text>
+            {% endfor %}
+            <polyline points="{{ charts.ac.polyline }}" class="chart-line"/>
+            {% if charts.ac.marker %}
+            <circle cx="{{ charts.ac.marker.x }}" cy="{{ charts.ac.marker.y }}" r="4" class="chart-marker"/>
+            <text x="{{ charts.ac.marker.x + 8 }}" y="{{ charts.ac.marker.y - 8 }}" class="chart-label">{{ charts.ac.marker.label }}</text>
+            {% endif %}
+            <text x="{{ charts.ac.left }}" y="14" class="chart-title">{{ charts.ac.y_label }}</text>
+            <text x="{{ charts.ac.right }}" y="{{ charts.ac.height - 6 }}" text-anchor="end" class="chart-title">{{ charts.ac.x_label }}</text>
+          </svg>
+          <figcaption>AC frequency response — gain referenced to source node IN before Cin.</figcaption>
+        </figure>
+        {% endif %}
+
+        {% if charts.tran %}
+        <figure class="chart">
+          <svg viewBox="0 0 {{ charts.tran.width }} {{ charts.tran.height }}" role="img"
+               aria-label="Transient input and output waveforms" preserveAspectRatio="xMidYMid meet">
+            <rect x="0" y="0" width="{{ charts.tran.width }}" height="{{ charts.tran.height }}" class="chart-bg"/>
+            <line x1="{{ charts.tran.left }}" y1="{{ charts.tran.top }}" x2="{{ charts.tran.left }}" y2="{{ charts.tran.bottom }}" class="chart-axis"/>
+            <line x1="{{ charts.tran.left }}" y1="{{ charts.tran.bottom }}" x2="{{ charts.tran.right }}" y2="{{ charts.tran.bottom }}" class="chart-axis"/>
+            {% for tick in charts.tran.x_ticks %}
+            <text x="{{ tick.x }}" y="{{ charts.tran.bottom + 18 }}" text-anchor="middle" class="chart-tick">{{ tick.label }}</text>
+            {% endfor %}
+            {% for tick in charts.tran.y_ticks %}
+            <text x="{{ charts.tran.left - 8 }}" y="{{ tick.y + 4 }}" text-anchor="end" class="chart-tick">{{ tick.label }}</text>
+            {% endfor %}
+            <polyline points="{{ charts.tran.vin_polyline }}" class="chart-line-vin"/>
+            <polyline points="{{ charts.tran.vout_polyline }}" class="chart-line-vout"/>
+            <text x="{{ charts.tran.left }}" y="14" class="chart-title">{{ charts.tran.y_label }}</text>
+            <text x="{{ charts.tran.right }}" y="{{ charts.tran.height - 6 }}" text-anchor="end" class="chart-title">{{ charts.tran.x_label }}</text>
+          </svg>
+          <figcaption>Transient waveforms —Vin (blue), Vout (teal), measured from ngspice samples.</figcaption>
+        </figure>
+        {% endif %}
+
+        <h3>Provenance</h3>
+        <table class="results-table provenance">
+          <tbody>
+            {% for label, value in provenance_rows %}
+            <tr><th>{{ label }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
     {% endif %}
   </div>
 </main>

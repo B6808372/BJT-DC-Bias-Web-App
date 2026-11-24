@@ -51,13 +51,13 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 
 @media (min-width: 860px) {
   .layout {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
 }
@@ -238,4 +238,156 @@ select:focus {
   background: #fff4e9;
   color: #7b3c16;
   font-size: 14px;
+}
+
+/* Lab 04 — engine status, provenance and server-rendered plots */
+.help {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status-badge {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.status-ok {
+  background: #e4f4ef;
+  color: var(--green);
+}
+
+.status-error,
+.status-unavailable {
+  background: #fff1e6;
+  color: var(--red);
+}
+
+.results h3 {
+  margin: 20px 0 8px;
+  font-size: 0.95rem;
+  color: #113c60;
+}
+
+.provenance {
+  table-layout: fixed;
+}
+
+.provenance th {
+  width: 34%;
+}
+
+.provenance td {
+  overflow-wrap: anywhere;
+}
+
+.chart {
+  margin: 18px 0 0;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.chart figcaption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chart-bg {
+  fill: #fbfdff;
+}
+
+.chart-axis {
+  stroke: #8fa8bc;
+  stroke-width: 1.2;
+}
+
+.chart-tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.chart-title {
+  fill: var(--navy);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chart-line,
+.chart-line-vin,
+.chart-line-vout {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.chart-line {
+  stroke: var(--blue);
+}
+
+.chart-line-vin {
+  stroke: var(--blue);
+}
+
+.chart-line-vout {
+  stroke: var(--teal);
+}
+
+.chart-marker {
+  fill: var(--orange);
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.chart-label {
+  fill: var(--orange);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 12px 40px;
+  }
+
+  .card,
+  .results {
+    padding: 16px 14px;
+  }
+
+  .mode-form {
+    flex-wrap: wrap;
+  }
+
+  .mode-form select {
+    flex: 1 1 100%;
+  }
+
+  .input-row {
+    flex-wrap: wrap;
+  }
+
+  .input-row select {
+    flex: 1 1 100%;
+  }
+
+  .results-table th {
+    width: 46%;
+  }
+
+  .chart figcaption {
+    font-size: 11px;
+  }
 }

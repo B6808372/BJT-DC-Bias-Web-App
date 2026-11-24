@@ -1,0 +1,5 @@
+* Project-defined teaching NPN model for Lab 04.
+* Not supplied by an instructor Starter Kit: none was present in the workspace.
+* These parameters are a documented teaching choice so SPICE runs are reproducible;
+* they are not a claim about a specific transistor part number.
+.model QT_NPN NPN(Is=1e-14 Bf=200 Vaf=100 Cje=4.493p Mje=0.2593 Vje=0.75 Cjc=3.638p Mjc=0.3085 Vjc=0.75 Tf=301.2p Rb=10 Rc=1)

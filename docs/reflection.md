@@ -59,8 +59,54 @@
   ตั้งค่า input หรือ `requestSubmit()` เพื่อเลือกโหมด; แอปยังถึง route เดิม
   และมี test client ครอบอยู่แล้ว จึงไม่แก้โค้ดแอปเพื่ออาการของเครื่องมือนี้
 
+## Lab 04: สิ่งที่ได้เรียนรู้จากการต่อ ngspice เข้าเว็บ
+
+### External-process integration
+
+- แยก `spice_engine.py` ออกจาก `app.py` ทำให้ชั้น HTTP ไม่ต้องรู้จัก netlist/CSV เลย
+  และยังรักษากฎเดิม: `dc_bias.py` เป็นสมการวิเคราะห์เพียงแหล่งเดียว ส่วน SPICE เป็นอีกแหล่งข้อมูล
+- เรียก engine ด้วย argument list, `cwd` เป็น temp directory แยกต่อรัน, มี `timeout`
+  และไม่ใช้ `shell=True` — ไฟล์ `wrdata` ที่เกิดขึ้นจึงไม่ปนกันระหว่างรัน
+- typed error (`EngineUnavailable`, `EngineRunError`, `EngineTimeout`, `EngineOutputError`)
+  ทำให้หน้าเว็บแยกได้ชัดระหว่าง “ผู้ใช้กรอกผิด” (400) กับ “engine ไม่พร้อม/ล่ม” (200 + status)
+  และไม่โชว์ผลรอบก่อนค้าง
+- TDD กับ mock `subprocess` ผ่านทั้งหมด แต่การรัน ngspice จริงเจออีก 3 bug ที่ mock ไม่ครอบ:
+  key ของ amplitude/frequency ไม่ตรงกัน, path `.include` มีช่องว่าง, และ `vp()` เป็น radian
+  → สรุปว่าต้องมีทั้ง unit test และ integration test กับ binary จริง
+
+### `.ac` กับ `.tran` ต่างกันอย่างไร
+
+- `.ac` เป็น small-signal frequency sweep: ได้ gain/phase ต่อความถี่ ต้องวัดเทียบ
+  source node `IN` ก่อน `Cin` ไม่ใช่เทียบ input หลัง capacitor และต้องบอกว่าความถี่ที่ขอ
+  อยู่ในช่วง sweep หรือไม่ แทนการแต่งค่า interpolation ขึ้นมา
+- `.tran` เป็น time-domain: เห็นรูปคลื่นจริง วัด peak-to-peak จากรอบสุดท้าย และดูทิศทางเฟส
+  จากสัญญาณจริง แต่จะบอก “−180° ที่ความถี่เดียว” ไม่ได้โดยตรง เลยรายงานเป็น `inverted`;
+  ถ้าหน้าต่างไม่ครบ 1 รอบหรือ sample ต่อรอบน้อยไป จะแสดง note แทนป้าย `last cycle`
+- ค่า phase ของ ngspice อยู่ใน radian ต้องแปลงเป็นองศาก่อน wrap (พิสูจน์ด้วย RC low-pass)
+
+### Provenance และความซื่อสัตย์ของผล
+
+- โมเดล `QT_NPN` เป็นโมเดลสอนที่โปรเจกต์เขียนเอง เพราะไม่มี Starter Kit ของอาจารย์
+  การแสดงชื่อ/path/params ในตาราง Provenance ทำให้ผู้ใช้รู้ว่ากำลังดูผลของโมเดลไหน
+- ผล SPICE ไม่บังคับให้ตรงกับผล Analytical ทุกหลัก เพราะคนละสมมติฐาน
+  การตรวจรับจึงเทียบแต่ละแหล่งกับ contract ของตัวเอง ไม่ได้เอาตัวเลข Lab 03 ไปบังคับ Lab 04
+- ตัวเลข IE ติดลบเป็น sign convention ของ ngspice ไม่ได้แก้ค่าดิบเพื่อความสวยงาม
+  แต่เขียนคำอธิบายไว้ในหน้าเว็บ
+
+### เครื่องมือ Browser และ UI
+
+- ใบงานแนะนำ Playwright MCP แต่เครื่องนี้ไม่มี `node`/`npx` จึงใช้ **OpenCode Browser**
+  และบันทึกชื่อเครื่องมือตามความจริงใน `docs/validation.md`
+- OpenCode Browser ไม่มี tool ปรับ viewport จริง จึงใช้ iframe กว้าง 390 px ที่ media query
+  `(max-width: 640px)` ทำงาน และวัด geometry แทนการอ้างว่าเป็นมือถือจริง
+- การวัดนี้เจอ bug ที่ตาเปล่าอาจมองข้าม: กราฟล้นเพราะ grid item มี `min-width:auto`
+  และตาราง Provenance มีข้อความยาวไม่ตัด — แก้ด้วย `minmax(0, 1fr)` และ `overflow-wrap`
+  แล้ววัดซ้ำจน `scrollWidth ≤ innerWidth`
+- โมเดล AI ที่เขียนเอกสารนี้ไม่สามารถเปิดดูภาพ screenshot ได้ จึงใช้ DOM geometry เป็นหลักฐาน
+  และเก็บ screenshot ไว้ให้มนุษย์ตรวจ ไม่ได้อ้างว่าดูภาพแล้วเข้าใจว่าสวยงาม
+
 ## ข้อจำกัดและงานต่อยอด
 
 - โมเดลนี้ไม่ใช่วงจรจริง — ไม่คิด Early effect, อุณหภูมิ, การกระจายของ β
-- ยังไม่มี DC Load Line และ AC Small-Signal ซึ่งจะเพิ่มในสัปดาห์ถัดไป
-- ตอนนี้รองรับ 3 วงจรแล้ว แต่ยังไม่มี DC Load Line, AC Small-Signal หรือ SPICE
+- Lab 04 ยังไม่มี DC load line, parametric sweep, Monte Carlo, temperature sweep หรือ device model อื่น
+- โหมด `bias` ยังเป็น analytical 3 วงจรเดิม; SPICE มีเฉพาะโหมด `dc`/`ac`/`tran` ของ fixture เดียว
