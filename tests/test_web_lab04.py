@@ -308,3 +308,93 @@ class TestLab04PresentationDetails(unittest.TestCase):
                      'class="circuit-value">100 nF</tspan>',
                      'class="circuit-value">25 mV · 2 kHz</tspan>'):
             self.assertIn(text, html)
+
+
+class TestLab04DashboardLayout(unittest.TestCase):
+    """Full-width result layout keeps the chart beside the numeric results."""
+
+    def setUp(self):
+        self.client = app.test_client()
+
+    def test_ac_result_page_uses_dashboard_grid_with_separate_chart_card(self):
+        result = {
+            "status": "OK", "analysis": "ac",
+            "ac": {
+                "points": [{"freq_hz": 1000.0, "gain_db": 4.6, "phase_deg": -180.0}],
+                "marker": {"freq_hz": 1000.0, "gain_db": 4.6, "phase_deg": -180.0},
+                "marker_note": "",
+            },
+            "provenance": {"engine": "ngspice-47", "model": MODEL_NAME}, "rows": 1,
+        }
+        payload = {
+            "analysis": "ac", "vcc": "12", "r1": "100", "r2": "22",
+            "rc": "2.2", "re": "1", "rl": "10", "cin": "10", "cout": "10",
+            "source_amp": "10", "source_freq": "1",
+            "r1_unit": "kohm", "r2_unit": "kohm", "rc_unit": "kohm",
+            "re_unit": "kohm", "rl_unit": "kohm",
+            "cin_unit": "uf", "cout_unit": "uf",
+            "amp_unit": "mv", "freq_unit": "khz",
+        }
+        with patch("app.run_analysis", return_value=result):
+            html = self.client.post("/calculate", data=payload).get_data(as_text=True)
+        self.assertIn('class="layout lab04-layout"', html)
+        self.assertIn('class="card chart-card"', html)
+        self.assertLess(html.index('class="card chart-card"'),
+                        html.index('class="results spice-results"'))
+
+    def test_chart_is_only_in_dedicated_card(self):
+        result = {
+            "status": "OK", "analysis": "ac",
+            "ac": {
+                "points": [{"freq_hz": 1000.0, "gain_db": 4.6, "phase_deg": -180.0}],
+                "marker": {"freq_hz": 1000.0, "gain_db": 4.6, "phase_deg": -180.0},
+                "marker_note": "",
+            },
+            "provenance": {"engine": "ngspice-47", "model": MODEL_NAME}, "rows": 1,
+        }
+        payload = {
+            "analysis": "ac", "vcc": "12", "r1": "100", "r2": "22",
+            "rc": "2.2", "re": "1", "rl": "10", "cin": "10", "cout": "10",
+            "source_amp": "10", "source_freq": "1",
+            "r1_unit": "kohm", "r2_unit": "kohm", "rc_unit": "kohm",
+            "re_unit": "kohm", "rl_unit": "kohm",
+            "cin_unit": "uf", "cout_unit": "uf",
+            "amp_unit": "mv", "freq_unit": "khz",
+        }
+        with patch("app.run_analysis", return_value=result):
+            html = self.client.post("/calculate", data=payload).get_data(as_text=True)
+        self.assertIn('class="card chart-card"', html)
+        card = html[html.index('class="card chart-card"'):]
+        card = card[:card.index('class="results spice-results"')]
+        self.assertIn("<svg", card)
+        self.assertNotIn('class="chart"', html[html.index('class="results spice-results"'):])
+
+    def test_ac_result_page_uses_full_width_page(self):
+        result = {
+            "status": "OK", "analysis": "ac",
+            "ac": {
+                "points": [{"freq_hz": 1000.0, "gain_db": 4.6, "phase_deg": -180.0}],
+                "marker": {"freq_hz": 1000.0, "gain_db": 4.6, "phase_deg": -180.0},
+                "marker_note": "",
+            },
+            "provenance": {"engine": "ngspice-47", "model": MODEL_NAME}, "rows": 1,
+        }
+        payload = {
+            "analysis": "ac", "vcc": "12", "r1": "100", "r2": "22",
+            "rc": "2.2", "re": "1", "rl": "10", "cin": "10", "cout": "10",
+            "source_amp": "10", "source_freq": "1",
+            "r1_unit": "kohm", "r2_unit": "kohm", "rc_unit": "kohm",
+            "re_unit": "kohm", "rl_unit": "kohm",
+            "cin_unit": "uf", "cout_unit": "uf",
+            "amp_unit": "mv", "freq_unit": "khz",
+        }
+        with patch("app.run_analysis", return_value=result):
+            html = self.client.post("/calculate", data=payload).get_data(as_text=True)
+        self.assertIn('class="page page-wide"', html)
+        self.assertNotIn('class="page page-wide"',
+                         self.client.get("/?mode=divider").get_data(as_text=True))
+
+    def test_bias_page_keeps_original_layout(self):
+        html = self.client.get("/?mode=divider").get_data(as_text=True)
+        self.assertIn('class="layout"', html)
+        self.assertNotIn("lab04-layout", html)

@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if analysis == "bias" %}BJT DC Bias Calculator{% else %}BJT Amplifier Simulator{% endif %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
 </head>
 <body>
-<main class="page">
+<main class="page{% if analysis != "bias" and spice_result %} page-wide{% endif %}">
   <header class="page-header">
     <p class="eyebrow">ENG29 2121 · {% if analysis == "bias" %}Lab 03{% else %}Lab 04{% endif %}</p>
     <h1>{% if analysis == "bias" %}BJT DC Bias Calculator{% else %}BJT Amplifier Simulator{% endif %}</h1>
@@ -20,7 +20,7 @@
     </p>
   </header>
 
-  <div class="layout">
+  <div class="layout{% if analysis != "bias" and spice_result %} lab04-layout{% endif %}">
     <section class="card">
       <h2>Input Parameters</h2>
 
@@ -400,21 +400,9 @@
       </section>
       {% endif %}
 
-      {% if spice_result %}
-      <section class="results spice-results" aria-live="polite">
-        <h2>SPICE Results — {{ analysis_labels[analysis] }}</h2>
-
-        {% if spice_display.rows %}
-        <table class="results-table">
-          <tbody>
-            {% for label, value in spice_display.rows %}
-            <tr><th>{{ label }}</th><td>{{ value }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% endif %}
-        {% if spice_display.note %}<p class="help">{{ spice_display.note }}</p>{% endif %}
-
+      {% if spice_result and (charts.ac or charts.tran) %}
+      <section class="card chart-card">
+        <h2>{% if charts.ac and charts.tran %}Simulation Plots{% elif charts.ac %}AC Frequency Response{% else %}Transient Waveform{% endif %}</h2>
         {% if charts.ac %}
         <figure class="chart">
           <svg viewBox="0 0 {{ charts.ac.width }} {{ charts.ac.height }}" role="img"
@@ -473,6 +461,23 @@
           <figcaption>Transient waveforms —Vin (blue), Vout (teal), measured from ngspice samples.</figcaption>
         </figure>
         {% endif %}
+      </section>
+      {% endif %}
+
+      {% if spice_result %}
+      <section class="results spice-results" aria-live="polite">
+        <h2>SPICE Results — {{ analysis_labels[analysis] }}</h2>
+
+        {% if spice_display.rows %}
+        <table class="results-table">
+          <tbody>
+            {% for label, value in spice_display.rows %}
+            <tr><th>{{ label }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        {% if spice_display.note %}<p class="help">{{ spice_display.note }}</p>{% endif %}
 
         <h3>Provenance</h3>
         <table class="results-table provenance">

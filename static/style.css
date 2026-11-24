@@ -28,6 +28,11 @@ body {
   padding: 32px 20px 56px;
 }
 
+/* Lab 04 results use the whole viewport width; Lab 03 keeps the original page. */
+.page-wide {
+  max-width: none;
+}
+
 .page-header h1 {
   margin: 6px 0 4px;
   color: var(--navy);
@@ -56,9 +61,51 @@ body {
 }
 
 @media (min-width: 860px) {
-  .layout {
+  .layout:not(.lab04-layout) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
+  }
+}
+
+/* Lab 04 dashboard: inputs | status + circuit + results | plot.
+   Below 1080px it collapses to a single column, like Lab 03. */
+@media (min-width: 1080px) {
+  .lab04-layout {
+    grid-template-columns: minmax(240px, 1.3fr) minmax(280px, 0.9fr) minmax(440px, 1.3fr);
+    align-items: start;
+  }
+
+  .lab04-layout > section:first-child {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+
+  .lab04-layout .circuit-card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .lab04-layout .engine-status {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .lab04-layout .spice-results {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .lab04-layout .chart-card {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+  }
+
+  .lab04-layout:not(:has(.chart-card)) {
+    grid-template-columns: minmax(240px, 0.8fr) minmax(280px, 1fr);
+  }
+
+  .lab04-layout:not(:has(.chart-card)) .spice-results {
+    grid-column: 2;
   }
 }
 
@@ -370,6 +417,10 @@ select:focus {
 
 .chart {
   margin: 18px 0 0;
+}
+
+.chart-card .chart:first-of-type {
+  margin-top: 0;
 }
 
 .chart svg {
